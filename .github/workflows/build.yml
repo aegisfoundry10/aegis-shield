@@ -54,6 +54,31 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Fail with a named problem instead of an AMO auth error. A misnamed or
+      # missing secret otherwise surfaces as "web-ext sign failed", which looks
+      # like a credentials problem rather than a naming problem.
+      - name: Verify AMO credentials are present
+        env:
+          AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
+          AMO_JWT_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+        run: |
+          missing=0
+          if [ -z "$AMO_JWT_ISSUER" ]; then
+            echo "::error::AMO_JWT_ISSUER is empty. Check the secret NAME under Settings -> Secrets and variables -> Actions."
+            missing=1
+          fi
+          if [ -z "$AMO_JWT_SECRET" ]; then
+            echo "::error::AMO_JWT_SECRET is empty. Check the secret NAME under Settings -> Secrets and variables -> Actions."
+            missing=1
+          fi
+          [ "$missing" -eq 0 ] || exit 1
+          # Shape checks only. The values are never printed.
+          case "$AMO_JWT_ISSUER" in
+            user:*) echo "issuer shape OK (user:<id>:<id>)" ;;
+            *)      echo "::warning::issuer does not look like user:<id>:<id>" ;;
+          esac
+          echo "secret length: ${#AMO_JWT_SECRET} characters (64 expected)"
+
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
