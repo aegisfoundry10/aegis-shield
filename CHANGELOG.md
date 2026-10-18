@@ -3,6 +3,35 @@
 All notable changes to Aegis Shield (Firefox). Version numbers track
 `manifest.json`.
 
+## 0.2.2 — 2026-10-18
+
+Follow-up to 0.2.1. **The shipped extension had no defect.** A reported
+regression — erratic multi-second black screens before playback — was traced to a
+temporary test build that had been left loaded in the browser, not to anything in
+this package. That build drove tabs on a timer and reported to a local sink that
+was not running, so it was fighting the user's own navigation. The harness can no
+longer do that, but none of it is part of what ships here.
+
+- **Cheaper change detection.** The rewriter decided whether a response needed
+  rewriting by re-serialising the whole document and comparing the resulting
+  strings. On an ad-free page that meant a parse plus two full stringifies to
+  conclude "change nothing", and three on the JSON path. It now counts the
+  structures the pruner actually deletes, so a no-op pass never serialises at
+  all. Measured against a real captured watch document: decision path 2.3 ms to
+  1.3 ms, whole rewrite 18.3 ms.
+
+  This is a real saving and a real simplification, but it is single-digit
+  milliseconds. It is **not** a latency fix and should not be read as one.
+- **Removed the `browser`/`chrome` namespace fallback** in the background entry
+  point. It existed only for a Chromium build that will not ship, so it was dead
+  code in a Firefox-only extension. Verified in live Firefox that the background
+  still loads to completion.
+- **README rewritten.** Installation steps now come first, and the comparison
+  against the abandoned Chromium build is gone — the design rationale is stated
+  as a property of this extension instead of as a contrast with another one.
+
+Verified: 40 tests, AMO validator 0 errors, real headless Firefox, live YouTube.
+
 ## 0.2.1 — 2026-10-18
 
 Fixes the reported failure where the YouTube home page did not build its video

@@ -12,7 +12,7 @@ makes no network requests of its own.
 
 **Requires Firefox 140 or newer.**
 
-1. Download **`aegis_shield-0.2.1.xpi`** from the
+1. Download the signed **`.xpi`** from the
    [latest release](https://github.com/aegisfoundry10/aegis-shield/releases/latest).
 2. Open the downloaded file in Firefox.
 3. Approve the permission prompt. Firefox will ask for access to all sites — that
