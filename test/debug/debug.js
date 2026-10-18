@@ -25,6 +25,15 @@
   // main.js reads settings asynchronously at startup, and this reporter sets the
   // value before the first navigation, so it is picked up.
   var DISABLE_REWRITE = false;
+  // Whether this reporter may drive the browser itself (open YouTube tabs on a
+  // timer to exercise the home and watch paths).
+  //
+  // FALSE by default, and only set true by make-debug-build.mjs when
+  // AEGIS_AUTODRIVE=1 is exported for that build. This is deliberate: a leftover
+  // debug build left loaded in a real browser would otherwise keep opening tabs
+  // and fighting the user's own navigation, which is indistinguishable from a
+  // serious bug in the extension.
+  var AUTODRIVE = false;
   // Two tabs: the home page (app bootstrap) then a watch page (player path).
   // The watch page is what exercises the reported black-screen symptom.
   var START_URL = "https://www.youtube.com/";
@@ -37,13 +46,27 @@
     "https://www.youtube.com/watch?v=kJQP7kiw5Fk"
   ];
 
+  // Stop reporting after repeated failures. A leftover debug build in a normal
+  // browser has no sink listening, and without this it retried a refused
+  // connection on every event, forever.
+  var postFailures = 0;
+  var postingDisabled = false;
+
   function post(payload) {
+    if (postingDisabled) return;
     try {
       fetch(ENDPOINT, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(payload)
-      }).catch(function () {});
+      })
+        .then(function () {
+          postFailures = 0;
+        })
+        .catch(function () {
+          postFailures++;
+          if (postFailures >= 3) postingDisabled = true;
+        });
     } catch (e) {}
   }
 
@@ -70,6 +93,12 @@
     if (b.length >= 2 && b[0] === 0x78) return "zlib";
     return null;
   }
+
+  console.warn(
+    "%c[AEGIS DEBUG BUILD] This is a test build, NOT the released extension. " +
+      "Remove it from about:debugging when testing is done.",
+    "color:#fff;background:#b00;padding:2px 4px;font-weight:bold"
+  );
 
   post({ phase: "debug-loaded", version: 4 });
 
@@ -314,7 +343,7 @@
    * 4. Navigation and heartbeat
    * ---------------------------------------------------------------- */
 
-  if (OPEN_YOUTUBE) {
+  if (OPEN_YOUTUBE && AUTODRIVE) {
     setTimeout(function () {
       browser.tabs
         .create({ url: START_URL, active: true })
