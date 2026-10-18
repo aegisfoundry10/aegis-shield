@@ -100,8 +100,15 @@ jobs:
             --api-key="$AMO_JWT_ISSUER" \
             --api-secret="$AMO_JWT_SECRET"
 
-      - name: Show signed artifact
-        run: ls -la web-ext-artifacts/*.xpi
+      # web-ext names the saved .xpi from the server's response, which for the
+      # unlisted channel is a hash-prefixed string like 0f3a9c1b2d4e-0.2.2.xpi.
+      # Rename it to something a human can recognise before it is published.
+      - name: Normalise the artifact name
+        run: |
+          version=$(node -p "require('./manifest.json').version")
+          src=$(ls web-ext-artifacts/*.xpi)
+          mv "$src" "web-ext-artifacts/aegis_shield-${version}.xpi"
+          ls -la web-ext-artifacts/*.xpi
 
       - uses: actions/upload-artifact@v4
         with:
