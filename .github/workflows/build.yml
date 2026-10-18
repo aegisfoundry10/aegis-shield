@@ -1,0 +1,85 @@
+# CI: validate on every push, and sign a release on every tag.
+#
+# Signing requires two repository secrets:
+#   AMO_JWT_ISSUER   e.g. user:12345:67
+#   AMO_JWT_SECRET   shown once when generated at addons.mozilla.org
+#
+# The unlisted channel is used so the signed .xpi can be attached to a GitHub
+# Release. Change --channel to `listed` to publish to the public AMO catalogue
+# instead (that also needs amo-metadata.json kept up to date).
+
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      # Mozilla's own validator. Must report 0 errors.
+      - name: Lint (AMO validator)
+        run: npx --yes web-ext@latest lint --output json
+
+      - name: Unit tests
+        run: node --test test/engine.test.mjs test/html-rewriter.test.mjs
+
+      - name: Build package
+        run: npx --yes web-ext@latest build
+
+      # Fails if anything that must not ship has crept into the package.
+      - name: Assert package contents
+        run: node test/check-package.mjs
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aegis-shield-unsigned
+          path: web-ext-artifacts/*.zip
+
+  sign:
+    # Only on a version tag, and only if the secrets exist.
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Sign (unlisted / self-distributed)
+        env:
+          AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
+          AMO_JWT_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+        run: |
+          npx --yes web-ext@latest sign \
+            --channel=unlisted \
+            --api-key="$AMO_JWT_ISSUER" \
+            --api-secret="$AMO_JWT_SECRET"
+
+      - name: Show signed artifact
+        run: ls -la web-ext-artifacts/*.xpi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aegis-shield-signed-xpi
+          path: web-ext-artifacts/*.xpi
+
+      # Requires: the tag push must be able to write releases.
+      - name: Attach signed .xpi to the release
+        if: success()
+        uses: softprops/action-gh-release@v2
+        with:
+          files: web-ext-artifacts/*.xpi
+          generate_release_notes: true

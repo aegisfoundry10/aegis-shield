@@ -1,0 +1,55 @@
+/* Aegis Shield — YouTube cosmetic layer.
+ * Applied by the manifest as a content-script stylesheet at document_start, so
+ * it lands before the player paints. This is the backstop for surfaces that are
+ * rendered from DOM templates rather than from the pruned JSON.
+ */
+
+ytd-ad-slot-renderer,
+ytd-in-feed-ad-layout-renderer,
+ytd-promoted-sparkles-web-renderer,
+ytd-promoted-sparkles-text-search-renderer,
+ytd-promoted-video-renderer,
+ytd-compact-promoted-video-renderer,
+ytd-display-ad-renderer,
+ytd-banner-promo-renderer,
+ytd-video-masthead-ad-v3-renderer,
+ytd-primetime-promo-renderer,
+ytd-search-pyv-renderer,
+ytd-mealbar-promo-renderer,
+ytd-statement-banner-renderer[is-ad],
+ytm-promoted-sparkles-web-renderer,
+#player-ads,
+#masthead-ad,
+#panels-full-bleed-container > ytd-ad-slot-renderer {
+  display: none !important;
+}
+
+/* Ad-only player chrome */
+.ytp-ad-overlay-container,
+.ytp-ad-progress-list,
+.ytp-ad-player-overlay,
+.ytp-ad-player-overlay-layout,
+.ytp-ad-text-overlay,
+.ytp-featured-product,
+.ytp-suggested-action {
+  display: none !important;
+}
+
+/* The enforcement wall. Kept display:none as well as removed by script so the
+ * backdrop can never capture a click. */
+ytd-enforcement-message-view-model,
+tp-yt-paper-dialog:has(> ytd-enforcement-message-view-model) {
+  display: none !important;
+  pointer-events: none !important;
+}
+
+/* Feed slot placeholders left behind after the renderer is dropped */
+ytd-rich-section-renderer:has(> #content > ytd-rich-shelf-renderer[is-shorts]) {
+  /* deliberately not hidden — shorts shelf is legitimate content */
+}
+
+/* Collapse the empty gap YouTube leaves where an ad slot used to be. */
+#contents > ytd-rich-item-renderer:empty,
+#contents > ytd-item-section-renderer > #contents:empty {
+  display: none !important;
+}

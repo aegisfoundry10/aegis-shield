@@ -1,0 +1,20 @@
+# Normalise line endings repo-wide.
+#
+# Without this, Windows' core.autocrlf rewrites every source file to CRLF on
+# checkout, so a Linux CI checkout and a Windows working tree disagree about
+# bytes on every file. Authors here use LF; keep it that way everywhere.
+* text=auto eol=lf
+
+# Binary — never touch.
+*.png binary
+*.zip binary
+*.xpi binary
+
+# These are intentionally LF-normalised even though they look binary-ish.
+*.md text eol=lf
+*.js text eol=lf
+*.mjs text eol=lf
+*.json text eol=lf
+*.css text eol=lf
+*.yml text eol=lf
+*.html text eol=lf

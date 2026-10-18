@@ -1,0 +1,17 @@
+# Build output and generated metadata
+_metadata/
+node_modules/
+web-ext-artifacts/
+test/debug/build/
+test/debug/*.log
+test/debug/reports.jsonl
+
+# Captured YouTube payloads. Regenerable with `npm run capture`, so only the
+# one fixture the test suite actually reads is committed.
+test/fixtures/raw/*
+!test/fixtures/raw/watch.html
+
+# OS noise
+Thumbs.db
+Desktop.ini
+.DS_Store

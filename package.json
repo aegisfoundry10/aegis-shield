@@ -1,0 +1,22 @@
+{
+  "name": "aegis-shield-firefox",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "description": "Firefox MV3 ad blocker. Removes YouTube ads in the network stack.",
+  "scripts": {
+    "test": "node --test test/engine.test.mjs test/html-rewriter.test.mjs",
+    "lint": "web-ext lint",
+    "build": "web-ext build",
+    "check:package": "node test/check-package.mjs",
+    "test:firefox": "web-ext run --no-reload --no-input",
+    "capture": "node test/capture-real.mjs",
+    "debug:build": "node test/debug/make-debug-build.mjs",
+    "debug:sink": "node test/debug/sink.mjs 200",
+    "sign": "web-ext sign --channel=unlisted",
+    "check": "npm run lint && npm test && npm run build && npm run check:package"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

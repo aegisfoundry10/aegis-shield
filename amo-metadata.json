@@ -1,0 +1,28 @@
+{
+  "categories": {
+    "firefox": ["privacy-security"]
+  },
+  "summary": {
+    "en-US": "Removes ads and trackers, including on YouTube. Collects nothing."
+  },
+  "description": {
+    "en-US": "Aegis Shield removes advertising at the network layer, before advertising code reaches the page.\n\nWHAT IT DOES\n\u2022 Removes YouTube's video ads by rewriting the responses the player receives, plus an optional speed-up for anything that slips through.\n\u2022 Blocks third-party advertising and analytics hosts across the web.\n\u2022 Hides leftover advertising placeholders after a block.\n\nHOW IT IS DIFFERENT\nMost ad blockers hide an ad after it has already loaded. This one edits the response so the ad is never scheduled in the first place. On Firefox it does that in the network stack, so nothing is injected into the page.\n\nWHAT IT COLLECTS\nNothing. No analytics, no telemetry, no crash reporting, no remote filter lists, no update pings. The extension makes no network requests of its own and works fully offline. Firefox will show a 'no data collected' notice at install; that is accurate.\n\nHONEST LIMITS\n\u2022 Advertising served from the same host as the content it sits beside cannot be removed.\n\u2022 Sites you have not had any rules written for will simply load normally.\n\u2022 When YouTube changes how it delivers ads, there is a period where this extension needs an update, like every other ad blocker."
+  },
+  "version": {
+    "license": "GPL-3.0",
+    "release_notes": {
+      "en-US": "Fixes the YouTube home page not building its video catalogue, and the black-screen delay when opening a video. Adds boot-payload filtering and stops rewriting responses that do not need it."
+    }
+  },
+  "homepage": {
+    "en-US": "https://github.com/OWNER/REPO"
+  },
+  "support_email": {
+    "en-US": "REPLACE@example.com"
+  },
+  "support_url": {
+    "en-US": "https://github.com/OWNER/REPO/issues"
+  },
+  "is_experimental": false,
+  "requires_payment": false
+}

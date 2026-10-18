@@ -1,0 +1,63 @@
+{
+  "manifest_version": 3,
+  "name": "Aegis Shield",
+  "version": "0.2.1",
+  "description": "Zero-telemetry ad and tracker blocker. Firefox build: removes YouTube ads in the network stack, before page JavaScript runs.",
+
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "aegis-shield@aegisfoundry.dev",
+      "strict_min_version": "140.0",
+      "data_collection_permissions": {
+        "required": ["none"]
+      }
+    }
+  },
+
+  "icons": {
+    "16": "icons/16.png",
+    "32": "icons/32.png",
+    "48": "icons/48.png",
+    "128": "icons/128.png"
+  },
+
+  "permissions": [
+    "webRequest",
+    "webRequestBlocking",
+    "webRequestFilterResponse",
+    "storage",
+    "tabs"
+  ],
+
+  "host_permissions": ["<all_urls>"],
+
+  "background": {
+    "scripts": [
+      "src/common/prune.js",
+      "src/common/stream-rewriter.js",
+      "src/common/html-rewriter.js",
+      "src/common/rules.js",
+      "src/background/intercept.js",
+      "src/background/block.js",
+      "src/background/main.js"
+    ]
+  },
+
+  "action": {
+    "default_title": "Aegis Shield",
+    "default_icon": {
+      "16": "icons/16.png",
+      "32": "icons/32.png"
+    }
+  },
+
+  "content_scripts": [
+    {
+      "matches": ["*://*.youtube.com/*", "*://*.youtube-nocookie.com/*"],
+      "js": ["src/content/yt-dom.js"],
+      "css": ["src/content/cosmetic.css"],
+      "run_at": "document_start",
+      "all_frames": true
+    }
+  ]
+}
