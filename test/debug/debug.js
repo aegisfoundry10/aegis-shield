@@ -21,10 +21,21 @@
   var ENDPOINT = "http://127.0.0.1:8787/report";
   var MAX_CAPTURE = 96;
   var OPEN_YOUTUBE = true;
+  // A/B knob: set true to disable response rewriting entirely for a control run.
+  // main.js reads settings asynchronously at startup, and this reporter sets the
+  // value before the first navigation, so it is picked up.
+  var DISABLE_REWRITE = false;
   // Two tabs: the home page (app bootstrap) then a watch page (player path).
   // The watch page is what exercises the reported black-screen symptom.
   var START_URL = "https://www.youtube.com/";
   var SECOND_URL = "https://www.youtube.com/watch?v=jNQXAC9IVRw";
+  // Additional watch pages, opened in sequence, so run-to-run variance can be
+  // attributed rather than guessed at.
+  var MORE_URLS = [
+    "https://www.youtube.com/watch?v=aqz-KE-bpKQ",
+    "https://www.youtube.com/watch?v=9bZkp7q19f0",
+    "https://www.youtube.com/watch?v=kJQP7kiw5Fk"
+  ];
 
   function post(payload) {
     try {
@@ -60,7 +71,21 @@
     return null;
   }
 
-  post({ phase: "debug-loaded", version: 3 });
+  post({ phase: "debug-loaded", version: 4 });
+
+  // A/B control: turn response rewriting off before the first navigation.
+  if (DISABLE_REWRITE) {
+    try {
+      browser.storage.local.set({
+        "aegis:settings": {
+          blockYouTube: true,
+          blockNetwork: true,
+          rewriteResponses: false
+        }
+      });
+      post({ phase: "ab-mode", rewriteResponses: false });
+    } catch (e) {}
+  }
 
   /* ---------------------------------------------------------------- *
    * 0. Permissions
@@ -98,22 +123,28 @@
     { urls: ["<all_urls>"] }
   );
 
-  // Observe what the response headers actually are for the endpoints we filter.
+  // Observe the response framing for everything on the site, so a rewritten
+  // response can be compared against the length the server declared.
   try {
     browser.webRequest.onHeadersReceived.addListener(
       function (details) {
-        var hdrs = {};
+        var hdrs = { status: details.statusCode };
         for (var i = 0; i < (details.responseHeaders || []).length; i++) {
           var h = details.responseHeaders[i];
           var n = (h.name || "").toLowerCase();
-          if (n === "content-encoding" || n === "content-length" || n === "content-type" || n === "vary") {
+          if (
+            n === "content-encoding" ||
+            n === "content-length" ||
+            n === "content-type" ||
+            n === "transfer-encoding"
+          ) {
             hdrs[n] = h.value;
           }
         }
         responseHeaders[details.requestId] = hdrs;
         return {};
       },
-      { urls: ["*://*.youtube.com/youtubei/v1/*"] },
+      { urls: ["*://*.youtube.com/*", "*://*.m.youtube.com/*"] },
       ["responseHeaders"]
     );
   } catch (e) {
@@ -148,6 +179,7 @@
 
     var rec = {
       id: id,
+      requestId: requestId,
       url: url,
       created: true,
       onstart: false,
@@ -201,6 +233,16 @@
         } catch (e) {}
         var r = fn.apply(this, arguments);
         if (name === "onstop" || name === "onerror") {
+          var hdrs = responseHeaders[rec.requestId] || null;
+          rec.headers = hdrs;
+          if (hdrs && hdrs["content-length"]) {
+            var declared = Number(hdrs["content-length"]);
+            rec.declaredLength = declared;
+            // What we are about to hand the browser, versus what it was told to
+            // expect. A mismatch here is the suspected cause of the post-write
+            // stall on rewritten responses.
+            rec.bufferedVsDeclared = rec.totalBytes - declared;
+          }
           post(Object.assign({ phase: "filter-finished" }, rec));
         }
         return r;
@@ -294,6 +336,19 @@
           post({ phase: "open-tab-FAILED", error: String(e && e.message) });
         });
     }, 22000);
+
+    MORE_URLS.forEach(function (u, i) {
+      setTimeout(function () {
+        browser.tabs
+          .create({ url: u, active: true })
+          .then(function (tab) {
+            post({ phase: "opened-tab", url: u, tabId: tab && tab.id });
+          })
+          .catch(function (e) {
+            post({ phase: "open-tab-FAILED", error: String(e && e.message) });
+          });
+      }, 38000 + i * 16000);
+    });
   }
 
   var beat = 0;
@@ -326,6 +381,41 @@
       blockLoaded: typeof root.__AEGIS_BLOCK__ === "object"
     });
   }, 5000);
+
+  /* ---------------------------------------------------------------- *
+   * 6. Record which rules actually cancel requests, and when.
+   *
+   * The player's ad_break request is blocked rather than rewritten. If YouTube
+   * retries that with backoff, a video whose payload schedules an ad would stall
+   * while a video without one would not — which is exactly the erratic pattern
+   * being investigated. Timestamped relative to load so it can be correlated
+   * with the page probe's time-to-player.
+   * ---------------------------------------------------------------- */
+
+  var BOOT_TS = Date.now();
+  var blockLog = [];
+
+  try {
+    var B = root.__AEGIS_BLOCK__;
+    var origBlock = B.onBeforeRequest;
+    B.onBeforeRequest = function (details) {
+      var out = origBlock(details);
+      if (out && out.cancel) {
+        blockLog.push({ t: Date.now() - BOOT_TS, url: (details.url || "").slice(0, 130), type: details.type });
+        if (blockLog.length <= 60) {
+          post({
+            phase: "blocked",
+            t: Date.now() - BOOT_TS,
+            url: (details.url || "").slice(0, 130),
+            type: details.type
+          });
+        }
+      }
+      return out;
+    };
+  } catch (e) {
+    post({ phase: "block-wrap-FAILED", error: String(e && e.message) });
+  }
 
   /* ---------------------------------------------------------------- *
    * 5. Relay page-state reports from the content-script probe.

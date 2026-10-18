@@ -68,6 +68,12 @@
       rewriter = RW.createRewriter({
         prunePlayer: P.prunePlayerResponse,
         pruneData: P.pruneInitialData,
+        // Counted variants. The rewriter decides "did anything change" from these
+        // rather than by re-serialising the document and comparing strings, which
+        // is the difference between a cheap pass-through and a full parse plus two
+        // stringifies of the whole document on every page load.
+        prunePlayerCounted: P.prunePlayerResponseCounted,
+        pruneDataCounted: P.pruneInitialDataCounted,
         detectAds: P.detectAds,
         isPlayer: isPlayer,
         mode: rule.kind === "html" ? "html" : "json",

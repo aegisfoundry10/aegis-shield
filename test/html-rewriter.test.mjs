@@ -29,6 +29,8 @@ const H = globalThis.__AEGIS_HTML__;
 const opts = {
   prunePlayer: P.prunePlayerResponse,
   pruneData: P.pruneInitialData,
+  prunePlayerCounted: P.prunePlayerResponseCounted,
+  pruneDataCounted: P.pruneInitialDataCounted,
   detectAds: P.detectAds
 };
 

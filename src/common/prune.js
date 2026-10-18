@@ -116,6 +116,7 @@
         for (var i = node.length - 1; i >= 0; i--) {
           if (isAdContainer(node[i])) {
             node.splice(i, 1);
+            counter.deleted++;
           }
         }
       }
@@ -132,6 +133,7 @@
       if (opts.keys.indexOf(key) !== -1) {
         try {
           delete node[key];
+          counter.deleted++;
         } catch (e) {
           /* frozen object — leave it alone */
         }
@@ -148,11 +150,31 @@
   function run(node, opts) {
     if (!isObject(node)) return node;
     try {
-      pruneDeep(node, opts, 0, new WeakSet(), { n: 0 });
+      pruneDeep(node, opts, 0, new WeakSet(), { n: 0, deleted: 0 });
     } catch (e) {
       /* never throw into page scope */
     }
     return node;
+  }
+
+  /**
+   * Prune and report how many structures were actually removed.
+   *
+   * Callers use the count to decide whether anything changed. That decision used
+   * to be made by re-serialising the whole document and comparing strings, which
+   * meant parsing and stringifying a multi-megabyte payload two or three times
+   * per response even when nothing changed — measurable latency on every page
+   * load. Counting deletions is free by comparison.
+   */
+  function runCounted(node, opts) {
+    if (!isObject(node)) return 0;
+    var counter = { n: 0, deleted: 0 };
+    try {
+      pruneDeep(node, opts, 0, new WeakSet(), counter);
+    } catch (e) {
+      /* never throw into page scope */
+    }
+    return counter.deleted;
   }
 
   /* ---------------------------------------------------------------- *
@@ -164,9 +186,22 @@
     return run(node, { keys: PLAYER_AD_KEYS, dropAdContainers: true });
   }
 
+  /** As prunePlayerResponse, but returns how many structures were removed. */
+  function prunePlayerResponseCounted(node) {
+    return runCounted(node, { keys: PLAYER_AD_KEYS, dropAdContainers: true });
+  }
+
   /** Strip ads from ytInitialData (browse / search / watch-next surfaces). */
   function pruneInitialData(node) {
     return run(node, {
+      keys: UNIVERSAL_AD_KEYS.slice(),
+      dropAdContainers: true
+    });
+  }
+
+  /** As pruneInitialData, but returns how many structures were removed. */
+  function pruneInitialDataCounted(node) {
+    return runCounted(node, {
       keys: UNIVERSAL_AD_KEYS.slice(),
       dropAdContainers: true
     });
@@ -259,7 +294,9 @@
     UNIVERSAL_AD_KEYS: UNIVERSAL_AD_KEYS,
     isAdContainer: isAdContainer,
     prunePlayerResponse: prunePlayerResponse,
+    prunePlayerResponseCounted: prunePlayerResponseCounted,
     pruneInitialData: pruneInitialData,
+    pruneInitialDataCounted: pruneInitialDataCounted,
     pruneKeys: pruneKeys,
     clonePrunedPlayer: clonePrunedPlayer,
     detectAds: detectAds

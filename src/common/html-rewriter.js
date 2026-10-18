@@ -116,8 +116,8 @@
     }
 
     var targets = [
-      { name: "ytInitialPlayerResponse", prune: opts.prunePlayer, count: opts.detectAds },
-      { name: "ytInitialData", prune: opts.pruneData, count: opts.detectAds }
+      { name: "ytInitialPlayerResponse", pruneCounted: opts.prunePlayerCounted },
+      { name: "ytInitialData", pruneCounted: opts.pruneDataCounted }
     ];
 
     // Collect replacements first, then apply back-to-front so offsets stay valid.
@@ -142,23 +142,24 @@
         continue;
       }
 
-      // Canonical form via the same serializer used below. The raw substring is
-      // NOT a valid baseline: a pretty-printed or \u-escaped inline payload
-      // serialises differently even when nothing was removed, which would make
-      // us rewrite the whole document for no reason.
-      var canonicalBefore;
+      // Decide whether anything changed from the pruner's own deletion count.
+      //
+      // This used to be decided by serialising the payload twice and comparing the
+      // resulting strings. That cost a full parse plus two stringifies of a
+      // multi-megabyte document on every intercepted page load, including pages
+      // with no ad at all — real latency, scaling with document size. Counting
+      // deletions is effectively free, and the only serialisation left is the one
+      // we actually ship.
+      var removed = 0;
       try {
-        canonicalBefore = serializeForHtml(data);
+        removed = t.pruneCounted(data);
       } catch (e) {
-        detail[t.name] = "unserialisable";
+        detail[t.name] = "prune-threw";
         continue;
       }
 
-      var before = t.count(data);
-      try {
-        t.prune(data);
-      } catch (e) {
-        detail[t.name] = "prune-threw";
+      if (removed === 0) {
+        detail[t.name] = "unchanged";
         continue;
       }
 
@@ -170,14 +171,9 @@
         continue;
       }
 
-      if (out === canonicalBefore) {
-        detail[t.name] = "unchanged";
-        continue;
-      }
-
       edits.push({ start: span.start, end: span.end, text: out });
-      totalAds += before;
-      detail[t.name] = "pruned" + (before > 0 ? "(" + before + ")" : "");
+      totalAds += removed;
+      detail[t.name] = "pruned(" + removed + ")";
     }
 
     if (!edits.length) {

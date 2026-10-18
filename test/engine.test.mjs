@@ -68,6 +68,8 @@ function makeRewriter(isPlayer) {
   return RW.createRewriter({
     prunePlayer: P.prunePlayerResponse,
     pruneData: P.pruneInitialData,
+    prunePlayerCounted: P.prunePlayerResponseCounted,
+    pruneDataCounted: P.pruneInitialDataCounted,
     detectAds: P.detectAds,
     isPlayer
   });
@@ -156,6 +158,8 @@ test("refuses to buffer beyond the ceiling", () => {
   const rw = RW.createRewriter({
     prunePlayer: P.prunePlayerResponse,
     pruneData: P.pruneInitialData,
+    prunePlayerCounted: P.prunePlayerResponseCounted,
+    pruneDataCounted: P.pruneInitialDataCounted,
     detectAds: P.detectAds,
     isPlayer: true,
     maxBytes: 32
@@ -179,6 +183,10 @@ test("a pruner that throws cannot corrupt the response", () => {
       throw new Error("boom");
     },
     pruneData: () => {},
+    prunePlayerCounted: () => {
+      throw new Error("boom");
+    },
+    pruneDataCounted: () => 0,
     detectAds: () => 0,
     isPlayer: true
   });
@@ -392,6 +400,57 @@ test("prune engine still detects and strips, non-destructively on detect", () =>
   assert.equal(JSON.stringify(pr), snapshot, "detectAds must not mutate");
   P.prunePlayerResponse(pr);
   assert.equal("adPlacements" in pr, false);
+});
+
+/* ---------------------------------------------------------------- *
+ * the counted pruners — the change-detection path
+ *
+ * These replaced "serialise the whole document twice and compare the strings"
+ * as the way the rewriter decides whether to rewrite a response. Two properties
+ * matter: the count must be accurate (an undercount silently skips a real ad in
+ * a response we then pass through), and a zero-deletion pass must not mutate.
+ * ---------------------------------------------------------------- */
+
+test("counted pruner reports 0 on an ad-free payload without mutating", () => {
+  const clean = { videoDetails: { videoId: "x" }, playabilityStatus: { status: "OK" } };
+  const snapshot = JSON.stringify(clean);
+  assert.equal(P.prunePlayerResponseCounted(clean), 0);
+  assert.equal(JSON.stringify(clean), snapshot, "a 0-deletion pass must not mutate");
+});
+
+test("counted pruner reports the deletions it actually made", () => {
+  const pr = playerResponseFixture();
+  assert.ok(P.prunePlayerResponseCounted(pr) > 0, "ad-bearing payload must report deletions");
+  assert.equal("adPlacements" in pr, false);
+});
+
+test("counted prune of a non-object is 0, never a throw", () => {
+  for (const v of [null, undefined, 42, "str", true]) {
+    assert.doesNotThrow(() => P.prunePlayerResponseCounted(v));
+    assert.doesNotThrow(() => P.pruneInitialDataCounted(v));
+    assert.equal(P.prunePlayerResponseCounted(v), 0);
+  }
+});
+
+test("ad-free JSON passes through untouched (reason unchanged)", () => {
+  const rw = makeRewriter(true);
+  const body = JSON.stringify({ videoDetails: { videoId: "x" }, playabilityStatus: { status: "OK" } });
+  feed(rw, [new TextEncoder().encode(body)]);
+  const res = rw.finish();
+  assert.equal(res.changed, false, "an ad-free payload must not be rewritten");
+  assert.equal(res.reason, "unchanged");
+  assert.equal(res.bytes, null, "pass-through must not produce new bytes");
+});
+
+test("ad-bearing JSON is rewritten and reports the removal count", () => {
+  const rw = makeRewriter(true);
+  feed(rw, [new TextEncoder().encode(JSON.stringify(playerResponseFixture()))]);
+  const res = rw.finish();
+  assert.equal(res.changed, true);
+  assert.equal(res.reason, "pruned");
+  assert.ok(res.adsRemoved > 0, "adsRemoved must reflect real deletions");
+  const out = JSON.parse(new TextDecoder().decode(res.bytes));
+  assert.equal("adPlacements" in out, false);
 });
 
 test("prune engine never throws on hostile input", () => {

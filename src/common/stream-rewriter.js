@@ -85,6 +85,8 @@
             htmlRes = opts.rewriteHtml(text, {
               prunePlayer: opts.prunePlayer,
               pruneData: opts.pruneData,
+              prunePlayerCounted: opts.prunePlayerCounted,
+              pruneDataCounted: opts.pruneDataCounted,
               detectAds: opts.detectAds
             });
           } catch (e) {
@@ -113,24 +115,29 @@
           return { bytes: null, changed: false, adsRemoved: 0, reason: "not-json" };
         }
 
-        // Canonical form of the parsed document, produced by the SAME serializer
-        // used for the output below. Comparing against the raw wire text instead
-        // would report "changed" for any formatting or escape difference, and we
-        // would rewrite responses we did not actually change.
-        var canonicalBefore;
+        // Decide whether anything changed from the pruner's own deletion count.
+        //
+        // This previously compared canonical forms, which required stringifying
+        // the whole document twice more — three full serialisations per response.
+        // Counting deletions is free, and it still cannot be fooled by a
+        // formatting or escape difference in the wire bytes, because it never
+        // looks at them.
+        var removed = 0;
         try {
-          canonicalBefore = JSON.stringify(data);
-        } catch (e) {
-          return { bytes: null, changed: false, adsRemoved: 0, reason: "encode-failed" };
-        }
-
-        var before = opts.detectAds(data);
-
-        try {
-          if (opts.isPlayer) opts.prunePlayer(data);
-          else opts.pruneData(data);
+          removed = opts.isPlayer
+            ? opts.prunePlayerCounted(data)
+            : opts.pruneDataCounted(data);
         } catch (e) {
           return { bytes: null, changed: false, adsRemoved: 0, reason: "prune-threw" };
+        }
+
+        // Pass through untouched when nothing was actually removed. Rewriting a
+        // response we did not change is pure risk: the rewritten length can
+        // disagree with the original framing headers, and a truncated body breaks
+        // the whole application (this is what broke YouTube's bootstrap `guide`
+        // response in v0.2.0).
+        if (removed === 0) {
+          return { bytes: null, changed: false, adsRemoved: 0, reason: "unchanged" };
         }
 
         var out;
@@ -140,22 +147,11 @@
           return { bytes: null, changed: false, adsRemoved: 0, reason: "encode-failed" };
         }
 
-        // Pass through untouched when nothing was actually removed. This compares
-        // canonical forms produced by the same serializer, so a formatting or
-        // escape difference in the wire bytes cannot masquerade as a change.
-        // Rewriting a response we did not change is pure risk: the rewritten
-        // length can disagree with the original framing headers, and a truncated
-        // body breaks the whole application (this is what broke YouTube's
-        // bootstrap `guide` response in v0.2.0).
-        if (JSON.stringify(data) === canonicalBefore) {
-          return { bytes: null, changed: false, adsRemoved: before, reason: "unchanged" };
-        }
-
         return {
           bytes: out,
           changed: true,
-          adsRemoved: before,
-          reason: before > 0 ? "pruned" : "reencoded"
+          adsRemoved: removed,
+          reason: "pruned"
         };
       }
     };
