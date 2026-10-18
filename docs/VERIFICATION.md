@@ -134,7 +134,7 @@ Stated plainly, because these are the things that matter:
   run has loaded YouTube with this build active. Everything above proves the
   extension installs, the manifest is valid, the rules are correct, and the
   rewrite state machine is correct. It does **not** prove the end-to-end path.
-  The Chromium build has that evidence; this one does not yet.
+  That evidence was not available for this build.
 - **The `StreamFilter` encoding assumption.** Firefox is documented to hand the
   filter decompressed bytes, and for a known content type the `Content-Encoding`
   header is meant to be transparent. This was not observed on a live response.

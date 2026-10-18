@@ -1,9 +1,9 @@
 /*
  * Aegis Shield (Firefox) — request blocking.
  *
- * Blocking webRequest is available on Firefox MV3 (Chrome removed it). That
- * means full RegExp matching on the URL, evaluated in JavaScript, with no
- * declarative rule-count ceiling and no static ruleset to ship.
+ * Blocking webRequest is supported under Firefox MV3, so rules are full JavaScript
+ * RegExp evaluated on the request URL, with no declarative rule-count ceiling and
+ * no static ruleset to ship.
  *
  * Filtering is intentionally scoped: a single listener over <all_urls> with a
  * regex test per request is not free, so the URL filter passed to the API is

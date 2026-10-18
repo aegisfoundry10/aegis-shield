@@ -4,8 +4,7 @@
  * Pure state machine. No browser APIs. Buffers the chunks delivered by a
  * webRequest.StreamFilter, and on stream end returns the bytes to write back.
  *
- * This is the module that makes the Firefox build strictly more capable than the
- * Chromium build: on Firefox the ad removal happens to the HTTP response body in
+ * This is where the ad removal actually happens: to the HTTP response body in
  * the network stack, before any page JavaScript runs. There is no MAIN-world
  * script, nothing patched on the page's own objects, and therefore nothing for
  * YouTube's tamper probe (/error_204 with msg containing "read-only" and

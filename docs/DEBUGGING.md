@@ -29,9 +29,9 @@ node test/debug/sink.mjs 200 &          # or via the agent's background runner
 npx web-ext run --source-dir test/debug/build --no-reload --no-input --arg=-headless
 ```
 
-`web-ext run` was used rather than `--load-extension` because Chrome-style
-command-line loading is gone; `web-ext` installs a temporary add-on through
-Firefox's own debugger, which is what `about:debugging` does by hand.
+`web-ext run` was used because it installs a temporary add-on through Firefox's own
+debugger — the same thing `about:debugging` does by hand — and needs no
+command-line extension-loading switch.
 
 The reporter wraps the shipping code **from the outside** — it patches
 `browser.webRequest.filterResponseData` and `__AEGIS_REWRITER__.createRewriter` —
@@ -129,16 +129,16 @@ real watch.html (1.34 MB) — ytInitialPlayerResponse=true  ytInitialData=true
 ```
 
 A network filter on the API endpoints therefore intercepts **nothing** on a cold page
-load. This is the same problem the Chromium build solves by patching the page's
-JavaScript — which the page can detect.
+load. Patching the page's own JavaScript could intercept the assignment instead, but
+that is detectable by the page.
 
-**Fixed** with the Firefox-only capability the port was supposed to exploit:
+**Fixed** with the capability the port was supposed to exploit:
 `src/common/html-rewriter.js` prunes the inline payloads inside the document, before
 the browser parses it. `filterResponseData` on `main_frame` gives us the HTML;
 balanced-brace scanning (string- and escape-aware) locates `ytInitialPlayerResponse`
 and `ytInitialData`; each is parsed, pruned, and re-serialised in place.
 
-The Chromium build cannot do this. Chromium has no `webRequest.filterResponseData`.
+This path is only possible because Firefox exposes `webRequest.filterResponseData`.
 
 ### Bug 4 — a security bug introduced by my own fix
 
@@ -202,7 +202,7 @@ genuinely pruned at the network layer, with the document head and tail byte-iden
   the harmful operations against the home page have stopped — the home document is now
   passed through untouched, and no error path can emit an empty response.
 - **That ads no longer play in a real session.** No ad break was triggered in any run
-  (headless Chrome and Firefox lack proprietary codecs, so no media plays). The
+  (headless browsers lack proprietary media codecs, so no media plays). The
   evidence is that ad structures were present in the payload and removed.
 - **The `elapsed=867ms` cost on the watch document.** The whole document is buffered
   before it is handed to the browser. That is inherent to modifying it. Whether it is

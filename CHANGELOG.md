@@ -39,16 +39,7 @@ First Firefox build.
 - Network-stack ad removal via `webRequest.filterResponseData()`. No MAIN-world
   content script, nothing injected into the page, and therefore nothing for
   YouTube's `error_204` tamper probe to detect.
-- Blocking `webRequest` with full `RegExp` rules (available on Firefox MV3;
-  removed from Chrome MV3).
+- Blocking `webRequest` with full `RegExp` rules, which Firefox MV3 supports.
 - DOM layer for cosmetics, skip-button automation, unskippable fast-forward, and
   the enforcement wall — which is removed, never answered with an allowlist.
 - No telemetry, no remote filter lists, no network requests of the extension's own.
-
-## 0.1.0 — 2026-10-17
-
-Chromium build (separate tree, `aegis-shield`).
-
-- MV3, `declarativeNetRequest`, MAIN-world interceptor patching `fetch` and
-  `XMLHttpRequest` plus an accessor on `ytInitialPlayerResponse`.
-- Verified end-to-end in real Chrome on a live YouTube watch page.

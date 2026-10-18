@@ -4,8 +4,8 @@
  * Classic script; populates globalThis.__AEGIS_RULES__.
  *
  * On Firefox we have blocking webRequest, so rules are full JavaScript RegExp
- * applied to the request URL. That is materially more expressive than Chromium's
- * declarativeNetRequest urlFilter subset: lookarounds, alternation with anchors,
+ * applied to the request URL. This is materially more expressive than a
+ * declarative urlFilter subset: lookarounds, alternation with anchors,
  * and \\d classes all work here, and the whole table can be rebuilt at runtime
  * from a downloaded filter list with no static-rule-count ceiling.
  */

@@ -4,7 +4,7 @@
  * Firefox MV3 runs the background as an event page declared with
  * background.scripts, not as a service worker. Consequence that matters here:
  * the background has a DOM and real globals, and is far less eager to terminate
- * than a Chrome service worker — but it is still non-persistent, so all state
+ * than a service worker — but it is still non-persistent, so all state
  * below is rebuilt from storage on every start and every listener is registered
  * at top level, synchronously, as Firefox requires for event pages.
  */
@@ -20,7 +20,7 @@
   var settings = Object.assign({}, DEFAULTS);
   var contentStats = {}; // tabId -> { wallRemoved, adsHidden, skipped }
 
-  var APIs = typeof browser !== "undefined" ? browser : chrome;
+  var APIs = browser;
 
   /* ---------------------------------------------------------------- *
    * Settings

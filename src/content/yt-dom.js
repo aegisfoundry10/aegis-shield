@@ -1,16 +1,15 @@
 /*
  * Aegis Shield (Firefox) — YouTube DOM content script.
  *
- * Runs in the ISOLATED world. Note what is absent compared with the Chromium
- * build: there is no MAIN-world companion script, no patching of window.fetch,
- * no redefinition of ytInitialPlayerResponse, and no custom-event channel
- * between the two worlds. The active ingredient on this build lives in
- * src/background/intercept.js and runs in the network stack.
+ * Runs in the ISOLATED world. Note what is absent: there is no MAIN-world
+ * companion script, no patching of window.fetch, no redefinition of
+ * ytInitialPlayerResponse, and no custom-event channel between worlds. The active
+ * ingredient lives in src/background/intercept.js and runs in the network stack.
  *
  * What remains here is the part that is genuinely DOM-shaped: cosmetic cleanup,
  * skip-button automation, unskippable fast-forward, and the enforcement wall.
  *
- * Consistent with the Chromium build, the wall is never answered with an
+ * The wall is never answered with an
  * allowlist. It is removed and playback resumes.
  */
 (function () {

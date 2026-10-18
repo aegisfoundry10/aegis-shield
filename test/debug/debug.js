@@ -317,7 +317,13 @@
           bytes: r.totalBytes,
           magic: r.compressionMagic
         };
-      })
+      }),
+      // Proves main.js executed to completion: __AEGIS_MAIN__ is defined by it,
+      // and debug.js is injected before main.js, so this is only true if main.js
+      // ran without throwing.
+      mainLoaded: typeof root.__AEGIS_MAIN__ === "object",
+      interceptLoaded: typeof root.__AEGIS_INTERCEPT__ === "object",
+      blockLoaded: typeof root.__AEGIS_BLOCK__ === "object"
     });
   }, 5000);
 

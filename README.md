@@ -1,6 +1,6 @@
-# Aegis Shield — Firefox build
+# Aegis Shield
 
-Manifest V3, Firefox-first. Removes YouTube ads **in the network stack**, before
+A Firefox ad blocker that removes YouTube ads **in the network stack**, before
 any page JavaScript runs.
 
 No telemetry. No remote filter lists. No "acceptable ads" tier. The extension
@@ -8,53 +8,48 @@ makes no network requests of its own.
 
 ---
 
-## Why the Firefox build is stronger than the Chromium one
+## Install
 
-The Chromium build works by running a content script in the page's own
-JavaScript context (`world: "MAIN"`), patching `window.fetch` and
-`XMLHttpRequest`, and redefining `ytInitialPlayerResponse` through an accessor.
-That is the only place Chromium MV3 leaves you.
+**Requires Firefox 140 or newer.**
 
-It also means the page can *see* all of it. YouTube does: Adblock Plus 4.47.0
-listens on `*://*.youtube.com/error_204*` and raises its
-`yt_site_context_tampering` event when the `msg` parameter contains both
-`read-only` and `non-configurable` — the signature of an extension that has
-installed a locked descriptor on the player object. The Chromium build has to
-spend effort being inconspicuous.
+1. Download **`aegis_shield-0.2.1.xpi`** from the
+   [latest release](https://github.com/aegisfoundry10/aegis-shield/releases/latest).
+2. Open the downloaded file in Firefox.
+3. Approve the permission prompt. Firefox will ask for access to all sites — that
+   is what lets the extension block advertising hosts anywhere and rewrite
+   YouTube's responses.
+4. Pin it from the toolbar's extensions menu, then open a YouTube video.
 
-Firefox removes the problem instead of mitigating it:
+The package is signed by Mozilla, so it installs into a normal release build of
+Firefox with no `about:config` changes. The toolbar badge counts what was removed
+on the current page.
 
-| | Chromium build | Firefox build |
-|---|---|---|
-| Where ad removal happens | page JavaScript context | **network stack** |
-| How | patched `fetch`/XHR + property accessor | `webRequest.filterResponseData()` rewrites the HTTP body |
-| Visible to page JS | yes | **no — nothing is injected into the page** |
-| YouTube tamper probe | must be actively evaded | **nothing to detect** |
-| Blocking API | `declarativeNetRequest` (declarative subset) | **blocking `webRequest` with full RegExp** |
-| Rule count ceiling | static ruleset limits | none — rules are JS |
-| MAIN-world content script | required | **not needed at all** |
+To install from a file later: `about:addons` → the gear icon next to *Manage Your
+Extensions* → **Install Add-on From File…**
 
-Two API facts make this possible, both Firefox-only:
+### Development install
 
-- **Firefox MV3 keeps blocking `webRequest`.** Chrome removed `webRequestBlocking`
-  in MV3 except for policy-installed extensions. So rules here are real
-  `RegExp` objects evaluated in JavaScript — lookarounds, alternation, `\b` — not
-  Chromium's restricted `urlFilter` syntax. There is no static ruleset to ship and
-  no rule ceiling.
-- **`webRequest.filterResponseData()` works under MV3** on Firefox 110+, with the
-  extra `webRequestFilterResponse` permission. This is the API uBlock Origin's
-  `replace=` and HTML filtering depend on, and it is the reason uBO is materially
-  more capable on Firefox.
+Temporary, and lost on every Firefox restart:
 
-The content script here (`src/content/yt-dom.js`) only does DOM work: cosmetics,
-skip-button automation, unskippable fast-forward, and the enforcement wall. It
-runs in the ISOLATED world. There is no MAIN-world companion.
+```
+about:debugging#/runtime/this-firefox → Load Temporary Add-on → pick manifest.json
+```
+
+---
+
+## What it does
+
+- Removes YouTube's video ads by rewriting the responses the player is handed, so
+  the player never learns an ad was scheduled.
+- Blocks third-party advertising and analytics hosts across the web.
+- Hides the placeholder a blocked ad leaves behind.
+- Skips, or fast-forwards through, anything that still reaches the player.
 
 ---
 
 ## How it works
 
-Two interception paths, both in the network stack:
+Two interception paths, both in the network stack rather than in the page.
 
 **1. API responses.** `src/background/intercept.js` attaches a `StreamFilter` to
 YouTube's API responses and rewrites the JSON body:
@@ -68,100 +63,139 @@ onstop           → parse JSON → prune adPlacements/playerAds/adSlots → wri
 Rewritten endpoints: `/youtubei/v1/player`, `next`, `browse`, `search`,
 `reel/reel_item_watch`, `reel/reel_watch_sequence`.
 
-**2. The HTML document.** Measured on a real cold watch-page load: 192 requests to
-YouTube, and `/youtubei/v1/player` was **never requested** — the player response was
-inlined in the document as `var ytInitialPlayerResponse = {...}`. The API path alone
-therefore intercepts nothing on a cold load. `src/common/html-rewriter.js` prunes the
-inline boot payloads inside the HTML before the browser parses it. Chromium cannot do
-this at all: it has no `filterResponseData`.
+**2. The HTML document.** Measured on a real cold watch-page load: 192 requests
+to YouTube, and `/youtubei/v1/player` was **never requested** — the player
+response was inlined in the document as `var ytInitialPlayerResponse = {...}`.
+The API path alone therefore intercepts nothing on a cold load.
+`src/common/html-rewriter.js` prunes the inline boot payloads inside the HTML
+before the browser parses it.
 
 `src/common/stream-rewriter.js` holds the chunk-buffering state machine as a pure
-function so it is testable without a browser.
+function, so it is testable without a browser.
 
-**Failure policy: fail open, never corrupt.** If the body is not JSON, is truncated,
-exceeds the ceiling, or the pruner throws, the original bytes are written through
-untouched. A response that is not actually modified is passed through **byte-identical**
-— rewriting a response we did not change is pure risk, and doing exactly that is what
-broke the home page in 0.2.0.
+### Why nothing touches the page
+
+Ad removal happens to the bytes of a response, not to the page's JavaScript.
+There is no content script running in the page's own context, `fetch` is not
+patched, and `ytInitialPlayerResponse` is not redefined.
+
+That matters because YouTube actively probes for extensions that do patch those
+things. It reports to its own `error_204` endpoint when a page error mentions both
+`read-only` and `non-configurable` — the signature of a locked descriptor having
+been installed on the player object. Nothing here installs one, so there is
+nothing to find.
+
+Two Firefox capabilities make this possible:
+
+- **Blocking `webRequest` under Manifest V3**, which is why the rules in
+  `src/common/rules.js` are real `RegExp` objects evaluated in JavaScript — with
+  lookarounds, alternation and `\b` available, no static ruleset to ship, and no
+  rule-count ceiling.
+- **`webRequest.filterResponseData()`**, available from Firefox 110 with the
+  `webRequestFilterResponse` permission. This is the API that allows a response
+  body to be read and rewritten at all.
+
+The content script (`src/content/yt-dom.js`) only does DOM work: cosmetics,
+skip-button automation, unskippable fast-forward, and the enforcement wall — which
+is removed rather than answered with an allowlist.
+
+### Failure policy: fail open, never corrupt
+
+If a body is not JSON, is truncated, exceeds the size ceiling, or the pruner
+throws, the original bytes are written through untouched. A response that is not
+actually modified is passed through **byte-identical**: rewriting something you
+did not change is pure risk, and doing exactly that is what broke the YouTube home
+page in 0.2.0.
 
 Serialisation for the HTML path re-escapes `<`, `>`, `&` and the U+2028/2029 line
-separators, because YouTube escapes them precisely so an embedded `</script>` cannot
-terminate the script element early.
+separators, because YouTube escapes them precisely so that an embedded `</script>`
+cannot terminate the script element early.
 
-**What 0.2.1 fixed.** See [`docs/DEBUGGING.md`](docs/DEBUGGING.md) for the full
-account: an unnecessary rewrite of the application-bootstrap `guide` response, an
-error path that emitted an empty body, a `Content-Encoding`/`Content-Length` desync,
-needless rewrites of unchanged responses, and an escaping bug in the HTML writer that
-would have injected `</script>` into the document.
+See [`docs/DEBUGGING.md`](docs/DEBUGGING.md) for the full account of what 0.2.1
+fixed — including an unnecessary rewrite of the application-bootstrap `guide`
+response, an error path that emitted an empty body, a `Content-Encoding` /
+`Content-Length` desync, and an escaping bug that would have injected `</script>`
+into the document.
 
 ---
 
-## Install (development)
+## Privacy
 
-```
-about:debugging#/runtime/this-firefox → Load Temporary Add-on → pick manifest.json
-```
+Nothing is collected, transmitted, or logged. No analytics, no telemetry, no crash
+reporting, no remote configuration, no update ping. Declared to Firefox as
+`data_collection_permissions: none`, which is what the install prompt shows.
 
-Temporary add-ons are lost on restart. For a persistent install the extension has
-to be signed — see `docs/VERIFICATION.md` for the `web-ext` commands, including
-the config that keeps the test harness out of the package.
+Per-tab counters live in memory and are discarded on navigation and browser exit.
+See [`docs/PRIVACY.md`](docs/PRIVACY.md) for the full statement and a
+permission-by-permission justification.
 
-## Verify
+---
+
+## Development
 
 ```bash
-npm test                    # 17 tests, pure functions, no browser
-npx web-ext lint            # Mozilla's own AMO validator
-npx web-ext build           # produces web-ext-artifacts/aegis_shield-0.2.0.zip
+npm test            # 35 tests, pure functions, no browser
+npm run lint        # Mozilla's own AMO validator
+npm run build       # produces web-ext-artifacts/aegis_shield-<version>.zip
+npm run check       # lint + test + build + package-contents assertion
 ```
 
 `npm run test:firefox` launches a real Firefox with the extension installed.
+
+There is **no build step and no bundler** — the shipped `.js` is the authored
+`.js`. That is deliberate: AMO requires unobfuscated source and asks for a source
+archive when a package is minified or bundled, so keeping it unbundled removes one
+of the main causes of long manual reviews. Reconsider before adding a bundler.
+
+`npm run check:package` asserts the built package contains only extension files.
+Packaging works by exclusion, so without it a stray root-level file would ship by
+default.
 
 ---
 
 ## Layout
 
 ```
-manifest.json              MV3, event-page background, Firefox-only keys
-.web-ext-config.mjs        AMO packaging: keeps test/ and docs/ out of the zip
-src/common/prune.js        JSON surgery engine (identical to the Chromium build)
+manifest.json                   MV3, event-page background
+.web-ext-config.mjs             packaging: keeps test/ and docs/ out of the zip
+src/common/prune.js             JSON surgery engine
 src/common/stream-rewriter.js   chunk buffering + rewrite state machine
-src/common/rules.js        blocking rule table (full RegExp) + intercept rules
+src/common/html-rewriter.js     inline boot-payload pruning
+src/common/rules.js             blocking rule table (full RegExp) + intercept rules
 src/background/intercept.js     StreamFilter wiring
-src/background/block.js         webRequest blocking + header normalisation
+src/background/block.js         webRequest blocking
 src/background/main.js          event-page entry, stats, badge
-src/content/yt-dom.js      DOM: cosmetics, skip, wall removal
-src/content/cosmetic.css   cosmetic hide list
-test/                      engine tests + Firefox launch test
+src/content/yt-dom.js           DOM: cosmetics, skip, wall removal
+src/content/cosmetic.css        cosmetic hide list
+test/                           engine tests, package guard, live-browser harness
+docs/                           release runbook, privacy, verification, debugging
 ```
 
-No build step. Load the directory as-is.
+## Releases
+
+Tagging a version signs the extension through AMO and attaches the signed `.xpi`
+to a GitHub Release automatically. See [`docs/RELEASE.md`](docs/RELEASE.md) for the
+runbook and the required repository secrets.
 
 ---
 
 ## Notes for whoever works on this next
 
-- **The one thing to verify by hand** is that the `StreamFilter` receives bytes
-  the rewriter can actually parse. Firefox is documented to hand the filter
-  *decompressed* data, and for a known type like `application/json` the
-  `Content-Encoding` header is meant to be transparent. If live YouTube returns
-  anything the rewriter cannot parse, the counters in
-  `intercept.js` → `stats.passedThrough` will climb and `stats.rewritten` will
-  stay flat. That is the diagnostic. If it happens, `block.js` →`onHeadersReceived`
-  is the hook that normalises `Content-Encoding` to `identity`.
-- **The content script's wall-removal path has never executed** on this build.
-  No test run has encountered the enforcement wall.
-- **Rules are evaluated per request in JS.** The `urls` filter in
-  `block.js` → `URL_FILTER` deliberately narrows the listener to the host
-  families that have rules, so this is not a per-request cost on every site.
-  Adding a rule for a new host means adding that host to `URL_FILTER` too, or it
-  will never be evaluated. This is an easy mistake to make.
+- **Adding a blocking rule needs two changes.** Rules are matched in JS, so a new
+  host must also be added to `URL_FILTER` in `src/background/block.js`, or the
+  listener will never see its requests. Easy mistake to make.
+- **The `googlevideo` ad-format rule is the dangerous one.** It is the only rule
+  that can break video playback if the pattern is wrong. `test/engine.test.mjs`
+  has explicit negative tests for it; do not simplify that regex without
+  re-running them.
 - **`strict_min_version` is 140.0** because `data_collection_permissions` was
   introduced in Firefox 140. Lower it only if you also drop that key — AMO
   requires the key for new extensions.
-- **The `googlevideo` ad-format rule is the dangerous one.** It is the only rule
-  that can break video playback if the pattern is wrong. There are explicit
-  negative tests for it in `test/engine.test.mjs`; do not simplify that regex
-  without re-running them.
+- **The enforcement-wall path is the least exercised code.** No test run has yet
+  triggered the wall, so `yt-dom.js` → `removeWall()` has never executed in
+  automation.
+- **YouTube moves; this will need maintenance.** When it changes how it delivers
+  ads, expect a period where this needs an update — same as any ad blocker.
 
 ## License
 
@@ -169,11 +203,11 @@ No build step. Load the directory as-is.
 
 Contains no code from Adblock Plus, Eyeo, or their EWE engine — this is an
 independent implementation. The license is shared with that ecosystem
-deliberately: it means a fork cannot be taken closed-source and turned into a
-paid product built on this work.
+deliberately: it means a fork cannot be taken closed-source and turned into a paid
+product built on this work.
 
 No per-file copyright header is present yet, because that requires naming a
-copyright holder. Add one before accepting outside contributions, in the form:
+copyright holder. Add one before accepting outside contributions:
 
 ```
 // SPDX-License-Identifier: GPL-3.0-only

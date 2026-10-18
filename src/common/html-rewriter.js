@@ -13,12 +13,11 @@
  *
  * So the boot payload has to be pruned inside the HTML, before the browser
  * parses it. This is the "HTML filtering" capability uBlock Origin has on
- * Firefox and cannot have on Chromium, because Chromium has no
- * webRequest.filterResponseData().
+ * Firefox, which depends on webRequest.filterResponseData().
  *
- * The Chromium build solves the same problem differently and worse: it patches
- * the page's own JavaScript to intercept the assignment, which the page can
- * detect. Here it is done to the bytes, before any page script exists.
+ * The alternative — patching the page's own JavaScript to intercept the
+ * assignment — is detectable by the page. Here it is done to the bytes, before
+ * any page script exists.
  */
 (function (root) {
   "use strict";

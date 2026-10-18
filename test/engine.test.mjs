@@ -382,7 +382,7 @@ test("intercept rules match the API endpoints and not the ad-break path", () => 
 });
 
 /* ---------------------------------------------------------------- *
- * prune.js regression — same engine as the Chromium build
+ * prune.js regression
  * ---------------------------------------------------------------- */
 
 test("prune engine still detects and strips, non-destructively on detect", () => {

@@ -4,12 +4,13 @@
  * Attaches a webRequest.StreamFilter to the YouTube API responses and rewrites
  * the JSON body before the browser hands it to the page.
  *
- * Why this is stronger than the Chromium build
- * -------------------------------------------
- * The Chromium build has to run a MAIN-world content script that patches
- * window.fetch / XMLHttpRequest and redefine ytInitialPlayerResponse. All of that
- * is observable from page JavaScript: the page can see the patched functions,
- * probe the descriptors, and beacon the result. YouTube's own error endpoint
+ * Why the page is never touched
+ * -----------------------------
+ * Nothing runs in the page's own context: window.fetch and XMLHttpRequest are not
+ * patched, and ytInitialPlayerResponse is not redefined. That matters because all
+ * of those would be observable from page JavaScript — the page could see the
+ * patched functions, probe the descriptors, and beacon the result. YouTube's own
+ * error endpoint
  * (/error_204) reports "read-only" + "non-configurable" for exactly that class
  * of extension.
  *

@@ -14,8 +14,7 @@ not a distribution method: it drops the extension on every browser restart.
 
 ## One-time setup
 
-1. Create a free account at <https://addons.mozilla.org>. There is no fee
-   (this is the main practical difference from the Chrome Web Store's $5).
+1. Create a free account at <https://addons.mozilla.org>. Registration is free.
 2. Go to **Tools → Manage API Keys → Generate new credentials**.
    - The **key** looks like `user:12345:67` and is the JWT issuer.
    - The **secret** is displayed **once**. If you lose it, revoke the pair and
