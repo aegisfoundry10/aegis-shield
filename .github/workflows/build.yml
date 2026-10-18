@@ -51,6 +51,13 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: check
     runs-on: ubuntu-latest
+    # Required to create the release and upload the signed .xpi. The default
+    # GITHUB_TOKEN is read-only, which fails with
+    # "403 Resource not accessible by integration" at the release step — after
+    # the signing has already succeeded, which makes it look like an auth
+    # problem when it is a permissions problem.
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
